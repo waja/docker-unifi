@@ -10,7 +10,7 @@ on:
       - 'v*.*.*'
 
 env:
-  TEST_TAG: jacobalberty/unifi:test
+  TEST_TAG: unifi:test
   PKGURL: https://dl.ui.com/unifi/6.5.55/unifi_sysvinit_all.deb
 
 jobs:

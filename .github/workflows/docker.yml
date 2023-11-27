@@ -32,10 +32,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Login to DockerHub
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != '' }}
         uses: docker/login-action@v2 
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_TOKEN }}
       - name: Build and export to Docker
         uses: docker/build-push-action@v4
         with:
@@ -50,6 +54,25 @@ jobs:
           for i in $(seq 1 10); do [ $(docker inspect --format='{{json .State.Health.Status}}' unifitest ) == \"healthy\" ] && break ||  sleep 35; done &&
           [ $(docker inspect --format='{{json .State.Health.Status}}' unifitest ) == \"healthy\" ] &&
           docker stop unifitest
+      - name: Prepare image names
+        id: prep
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          USER="${GITHUB_REPOSITORY_OWNER}"
+          IMAGE_NAME="$(echo '${{ github.repository }}' | awk -F '/' '{print $2}' | sed  s/docker-//)"
+          DOCKER_IMAGE="${USER}/${IMAGE_NAME}"
+          IMAGES=""
+          if [ "$DOCKERHUB_USERNAME" != '' ] && [ "$DOCKERHUB_TOKEN" != '' ]; then
+            IMAGES="${DOCKER_IMAGE}"
+          fi
+          if [ "$IMAGES" != '' ]; then
+            IMAGES="${IMAGES},ghcr.io/${DOCKER_IMAGE}"
+          else
+            IMAGES="ghcr.io/${DOCKER_IMAGE}"
+          fi
+          echo "images=${IMAGES}" >> "$GITHUB_OUTPUT"
       - name: Extract metadata (tags, labels) for Docker
         id: meta
         uses: docker/metadata-action@v4
@@ -61,8 +84,7 @@ jobs:
             type=semver,pattern=v{{major}}.{{minor}}
             type=ref,event=branch
           images: |
-            jacobalberty/unifi
-            ghcr.io/${{ github.repository }}
+            ${{ steps.prep.outputs.images }}
       - name: Build container image
         uses: docker/build-push-action@v4
         with:
